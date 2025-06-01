@@ -58,7 +58,8 @@ class Bot:
             await self.application.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
         except Exception as e:
             logger.error(f"Error starting bot: {e}")
-            await self.stop()
+            if self._running:
+                await self.stop()
 
     async def stop(self):
         """Stop the bot gracefully."""
@@ -72,20 +73,21 @@ class Bot:
             finally:
                 self._running = False
 
-def run_bot():
-    """Run the bot with proper event loop handling."""
+async def main():
+    """Main function to run the bot."""
     bot = Bot()
-    
-    async def main():
-        try:
-            await bot.start()
-        except KeyboardInterrupt:
-            logger.info("Bot stopped by user")
-        except Exception as e:
-            logger.error(f"Error running bot: {e}")
-        finally:
+    try:
+        await bot.start()
+    except KeyboardInterrupt:
+        logger.info("Bot stopped by user")
+    except Exception as e:
+        logger.error(f"Error running bot: {e}")
+    finally:
+        if bot._running:
             await bot.stop()
 
+def run_bot():
+    """Run the bot with proper event loop handling."""
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
