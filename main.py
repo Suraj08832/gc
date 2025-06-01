@@ -66,16 +66,21 @@ async def main():
             )
         
         # Start polling
-        await application.run_polling(allowed_updates=Update.ALL_TYPES)
+        await application.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
     except Exception as e:
         logger.error(f"Error during polling: {e}")
+        await shutdown(application)
     finally:
         await shutdown(application)
 
-if __name__ == '__main__':
+def run_bot():
+    """Run the bot with proper event loop handling."""
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
         logger.info("Bot stopped by user")
     except Exception as e:
         logger.error(f"Error running bot: {e}")
+
+if __name__ == '__main__':
+    run_bot()
