@@ -1,10 +1,14 @@
 from pymongo import MongoClient
 import os
 from dotenv import load_dotenv
+from datetime import datetime
+import logging
 
 # Load environment variables
 load_dotenv()
 MONGODB_URI = os.getenv('MONGO_DB_URI', 'mongodb://localhost:27017/')
+
+logger = logging.getLogger(__name__)
 
 class Database:
     def __init__(self):
@@ -48,11 +52,39 @@ class Database:
             upsert=True
         )
     
-    def is_sticker_approved(self, chat_id: int, sticker_id: str):
-        return bool(self.sticker_approvals.find_one({
-            'chat_id': chat_id,
-            'sticker_id': sticker_id
-        }))
+    def is_sticker_approved(self, chat_id: int, sticker_id: str) -> bool:
+        """Check if a sticker is approved in a chat"""
+        try:
+            result = self.sticker_approvals.find_one({
+                'chat_id': chat_id,
+                'sticker_id': sticker_id,
+                'approved': True
+            })
+            return bool(result)
+        except Exception as e:
+            logger.error(f"Error checking sticker approval: {e}")
+            return False
+    
+    def approve_sticker(self, chat_id: int, sticker_id: str) -> bool:
+        """Approve a sticker in a chat"""
+        try:
+            self.sticker_approvals.update_one(
+                {
+                    'chat_id': chat_id,
+                    'sticker_id': sticker_id
+                },
+                {
+                    '$set': {
+                        'approved': True,
+                        'approved_at': datetime.utcnow()
+                    }
+                },
+                upsert=True
+            )
+            return True
+        except Exception as e:
+            logger.error(f"Error approving sticker: {e}")
+            return False
     
     def remove_sticker_approval(self, chat_id: int, sticker_id: str):
         self.sticker_approvals.delete_one({
@@ -155,7 +187,6 @@ class Database:
     
     @staticmethod
     def get_current_timestamp():
-        from datetime import datetime
         return datetime.utcnow().timestamp()
 
 # Create a global database instance

@@ -2,6 +2,9 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 from modules.database import db
 from modules.messages import messages
+import logging
+
+logger = logging.getLogger(__name__)
 
 async def handle_sticker(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle sticker messages and check if they need approval"""
@@ -24,23 +27,26 @@ async def handle_sticker(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Check if sticker is approved
     if not db.is_sticker_approved(chat_id, sticker_id):
-        # Delete the sticker
-        await update.message.delete()
-        
-        # Send approval request to owner
-        keyboard = [
-            [
-                InlineKeyboardButton("✅ Approve", callback_data=f"approve_sticker_{sticker_id}"),
-                InlineKeyboardButton("❌ Reject", callback_data=f"reject_sticker_{sticker_id}")
+        try:
+            # Delete the sticker
+            await update.message.delete()
+            
+            # Send approval request to owner
+            keyboard = [
+                [
+                    InlineKeyboardButton("✅ Approve", callback_data=f"approve_sticker_{sticker_id}"),
+                    InlineKeyboardButton("❌ Reject", callback_data=f"reject_sticker_{sticker_id}")
+                ]
             ]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        await context.bot.send_message(
-            chat_id=chat_id,
-            text=f"🇺🇸 English\n\nSticker from {update.message.from_user.mention_html()} needs owner approval.",
-            reply_markup=reply_markup
-        )
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=f"🇺🇸 English\n\nSticker from {update.message.from_user.mention_html()} needs owner approval.",
+                reply_markup=reply_markup
+            )
+        except Exception as e:
+            logger.error(f"Error handling sticker: {e}")
 
 async def handle_sticker_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle sticker approval/rejection callbacks"""
