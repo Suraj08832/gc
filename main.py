@@ -31,8 +31,9 @@ async def shutdown(application: Application):
     """Shutdown the application gracefully."""
     logger.info("Shutting down...")
     try:
-        await application.stop()
-        await application.shutdown()
+        if application.running:
+            await application.stop()
+            await application.shutdown()
     except Exception as e:
         logger.error(f"Error during shutdown: {e}")
 
@@ -69,9 +70,9 @@ async def main():
         await application.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
     except Exception as e:
         logger.error(f"Error during polling: {e}")
-        await shutdown(application)
     finally:
-        await shutdown(application)
+        if application.running:
+            await shutdown(application)
 
 def run_bot():
     """Run the bot with proper event loop handling."""
