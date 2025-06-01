@@ -4,22 +4,27 @@ from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
-MONGODB_URI = os.getenv('MONGODB_URI', 'mongodb://localhost:27017/')
+MONGODB_URI = os.getenv('MONGO_DB_URI', 'mongodb://localhost:27017/')
 
 class Database:
     def __init__(self):
-        self.client = MongoClient(MONGODB_URI)
-        self.db = self.client['telegram_bot']
-        
-        # Collections
-        self.users = self.db['users']
-        self.chats = self.db['chats']
-        self.warnings = self.db['warnings']
-        self.mutes = self.db['mutes']
-        self.settings = self.db['settings']
-        
-        # Create indexes
-        self._create_indexes()
+        try:
+            self.client = MongoClient(MONGODB_URI)
+            self.db = self.client['telegram_bot']
+            
+            # Collections
+            self.users = self.db['users']
+            self.chats = self.db['chats']
+            self.warnings = self.db['warnings']
+            self.mutes = self.db['mutes']
+            self.settings = self.db['settings']
+            self.sticker_approvals = self.db['sticker_approvals']
+            
+            # Create indexes
+            self._create_indexes()
+        except Exception as e:
+            print(f"Error connecting to MongoDB: {e}")
+            raise
     
     def _create_indexes(self):
         # Create indexes for faster queries
@@ -28,6 +33,32 @@ class Database:
         self.warnings.create_index([('user_id', 1), ('chat_id', 1)])
         self.mutes.create_index([('user_id', 1), ('chat_id', 1)])
         self.settings.create_index('chat_id', unique=True)
+        self.sticker_approvals.create_index([('chat_id', 1), ('sticker_id', 1)], unique=True)
+    
+    # Sticker approval operations
+    def add_sticker_approval(self, chat_id: int, sticker_id: str, approved_by: int):
+        self.sticker_approvals.update_one(
+            {'chat_id': chat_id, 'sticker_id': sticker_id},
+            {
+                '$set': {
+                    'approved_by': approved_by,
+                    'approved_at': self.get_current_timestamp()
+                }
+            },
+            upsert=True
+        )
+    
+    def is_sticker_approved(self, chat_id: int, sticker_id: str):
+        return bool(self.sticker_approvals.find_one({
+            'chat_id': chat_id,
+            'sticker_id': sticker_id
+        }))
+    
+    def remove_sticker_approval(self, chat_id: int, sticker_id: str):
+        self.sticker_approvals.delete_one({
+            'chat_id': chat_id,
+            'sticker_id': sticker_id
+        })
     
     # User operations
     def add_user(self, user_id: int, username: str = None, first_name: str = None):
