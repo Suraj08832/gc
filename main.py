@@ -3,6 +3,7 @@ import logging
 import asyncio
 import signal
 from dotenv import load_dotenv
+from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 from modules.bio_protection import setup_bio_handlers
 from modules.message_control import setup_message_handlers
