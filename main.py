@@ -27,55 +27,65 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-async def shutdown(application: Application):
-    """Shutdown the application gracefully."""
-    logger.info("Shutting down...")
-    try:
-        if application.running:
-            await application.stop()
-            await application.shutdown()
-    except Exception as e:
-        logger.error(f"Error during shutdown: {e}")
+class Bot:
+    def __init__(self):
+        self.application = None
+        self._running = False
 
-async def main():
-    """Start the bot."""
-    # Create the Application
-    application = Application.builder().token(BOT_TOKEN).build()
-    
-    # Setup handlers from different modules
-    setup_bio_handlers(application)
-    setup_message_handlers(application)
-    setup_sticker_handlers(application)
-    setup_copyright_handlers(application)
-    setup_command_handlers(application)
-    setup_welcome_handlers(application)
-    setup_anti_spam_handlers(application)
-    setup_user_management_handlers(application)
-    setup_sticker_handlers(application)
-    
-    # Start the bot
-    try:
-        await application.initialize()
-        await application.start()
-        
-        # Set up signal handlers
-        loop = asyncio.get_running_loop()
-        for sig in (signal.SIGTERM, signal.SIGINT):
-            loop.add_signal_handler(
-                sig,
-                lambda s=sig: asyncio.create_task(shutdown(application))
-            )
-        
-        # Start polling
-        await application.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
-    except Exception as e:
-        logger.error(f"Error during polling: {e}")
-    finally:
-        if application.running:
-            await shutdown(application)
+    async def start(self):
+        """Start the bot."""
+        try:
+            # Create the Application
+            self.application = Application.builder().token(BOT_TOKEN).build()
+            
+            # Setup handlers from different modules
+            setup_bio_handlers(self.application)
+            setup_message_handlers(self.application)
+            setup_sticker_handlers(self.application)
+            setup_copyright_handlers(self.application)
+            setup_command_handlers(self.application)
+            setup_welcome_handlers(self.application)
+            setup_anti_spam_handlers(self.application)
+            setup_user_management_handlers(self.application)
+            setup_sticker_handlers(self.application)
+            
+            # Start the bot
+            await self.application.initialize()
+            await self.application.start()
+            self._running = True
+            
+            # Start polling
+            await self.application.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
+        except Exception as e:
+            logger.error(f"Error starting bot: {e}")
+            await self.stop()
+
+    async def stop(self):
+        """Stop the bot gracefully."""
+        if self._running and self.application:
+            logger.info("Shutting down...")
+            try:
+                await self.application.stop()
+                await self.application.shutdown()
+            except Exception as e:
+                logger.error(f"Error during shutdown: {e}")
+            finally:
+                self._running = False
 
 def run_bot():
     """Run the bot with proper event loop handling."""
+    bot = Bot()
+    
+    async def main():
+        try:
+            await bot.start()
+        except KeyboardInterrupt:
+            logger.info("Bot stopped by user")
+        except Exception as e:
+            logger.error(f"Error running bot: {e}")
+        finally:
+            await bot.stop()
+
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
