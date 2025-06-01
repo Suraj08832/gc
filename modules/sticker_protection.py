@@ -15,21 +15,26 @@ async def handle_sticker(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
     sticker_id = update.message.sticker.file_id
 
-    # Get chat settings
-    chat_settings = db.get_chat_settings(chat_id)
-    if not chat_settings or not chat_settings.get('sticker_protection', False):
-        return
+    try:
+        # Get chat settings
+        chat_settings = db.get_chat_settings(chat_id)
+        if not chat_settings or not chat_settings.get('sticker_protection', False):
+            return
 
-    # Check if user is owner
-    chat_member = await context.bot.get_chat_member(chat_id, user_id)
-    if chat_member.status == 'creator':
-        return
+        # Check if user is owner
+        chat_member = await context.bot.get_chat_member(chat_id, user_id)
+        if chat_member.status == 'creator':
+            return
 
-    # Check if sticker is approved
-    if not db.is_sticker_approved(chat_id, sticker_id):
-        try:
-            # Delete the sticker
-            await update.message.delete()
+        # Check if sticker is approved
+        if not db.is_sticker_approved(chat_id, sticker_id):
+            # Delete the sticker first
+            try:
+                await update.message.delete()
+                logger.info(f"Deleted unapproved sticker from user {user_id} in chat {chat_id}")
+            except Exception as e:
+                logger.error(f"Failed to delete sticker: {e}")
+                return
             
             # Send approval request to owner
             keyboard = [
@@ -40,13 +45,17 @@ async def handle_sticker(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
-            await context.bot.send_message(
-                chat_id=chat_id,
-                text=f"🇺🇸 English\n\nSticker from {update.message.from_user.mention_html()} needs owner approval.",
-                reply_markup=reply_markup
-            )
-        except Exception as e:
-            logger.error(f"Error handling sticker: {e}")
+            try:
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text=f"🇺🇸 English\n\nSticker from {update.message.from_user.mention_html()} needs owner approval.",
+                    reply_markup=reply_markup
+                )
+                logger.info(f"Sent sticker approval request for sticker {sticker_id} in chat {chat_id}")
+            except Exception as e:
+                logger.error(f"Failed to send approval request: {e}")
+    except Exception as e:
+        logger.error(f"Error in handle_sticker: {e}")
 
 async def handle_sticker_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle sticker approval/rejection callbacks"""
@@ -57,19 +66,28 @@ async def handle_sticker_callback(update: Update, context: ContextTypes.DEFAULT_
     chat_id = query.message.chat_id
     user_id = query.from_user.id
 
-    # Check if user is owner
-    chat_member = await context.bot.get_chat_member(chat_id, user_id)
-    if chat_member.status != 'creator':
-        await query.answer("Only group owner can approve/reject stickers!", show_alert=True)
-        return
+    try:
+        # Check if user is owner
+        chat_member = await context.bot.get_chat_member(chat_id, user_id)
+        if chat_member.status != 'creator':
+            await query.answer("Only group owner can approve/reject stickers!", show_alert=True)
+            return
 
-    action, sticker_id = query.data.split('_', 1)
-    
-    if action == "approve":
-        db.approve_sticker(chat_id, sticker_id)
-        await query.edit_message_text("✅ Sticker approved by owner!")
-    else:
-        await query.edit_message_text("❌ Sticker rejected by owner!")
+        action, sticker_id = query.data.split('_', 1)
+        
+        if action == "approve":
+            if db.approve_sticker(chat_id, sticker_id):
+                await query.edit_message_text("✅ Sticker approved by owner!")
+                logger.info(f"Sticker {sticker_id} approved by owner {user_id} in chat {chat_id}")
+            else:
+                await query.edit_message_text("❌ Failed to approve sticker!")
+                logger.error(f"Failed to approve sticker {sticker_id} in chat {chat_id}")
+        else:
+            await query.edit_message_text("❌ Sticker rejected by owner!")
+            logger.info(f"Sticker {sticker_id} rejected by owner {user_id} in chat {chat_id}")
+    except Exception as e:
+        logger.error(f"Error in handle_sticker_callback: {e}")
+        await query.answer("An error occurred while processing your request.", show_alert=True)
 
 def setup_sticker_handlers(application: Application):
     """Set up sticker-related handlers"""

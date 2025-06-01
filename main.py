@@ -30,8 +30,11 @@ logger = logging.getLogger(__name__)
 async def shutdown(application: Application):
     """Shutdown the application gracefully."""
     logger.info("Shutting down...")
-    await application.stop()
-    await application.shutdown()
+    try:
+        await application.stop()
+        await application.shutdown()
+    except Exception as e:
+        logger.error(f"Error during shutdown: {e}")
 
 async def main():
     """Start the bot."""
@@ -50,18 +53,19 @@ async def main():
     setup_sticker_handlers(application)
     
     # Start the bot
-    await application.initialize()
-    await application.start()
-    
-    # Set up signal handlers
-    loop = asyncio.get_running_loop()
-    for sig in (signal.SIGTERM, signal.SIGINT):
-        loop.add_signal_handler(
-            sig,
-            lambda s=sig: asyncio.create_task(shutdown(application))
-        )
-    
     try:
+        await application.initialize()
+        await application.start()
+        
+        # Set up signal handlers
+        loop = asyncio.get_running_loop()
+        for sig in (signal.SIGTERM, signal.SIGINT):
+            loop.add_signal_handler(
+                sig,
+                lambda s=sig: asyncio.create_task(shutdown(application))
+            )
+        
+        # Start polling
         await application.run_polling(allowed_updates=Update.ALL_TYPES)
     except Exception as e:
         logger.error(f"Error during polling: {e}")
