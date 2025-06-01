@@ -1,6 +1,7 @@
 import os
 import logging
 import asyncio
+import signal
 from dotenv import load_dotenv
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 from modules.bio_protection import setup_bio_handlers
@@ -25,6 +26,12 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+async def shutdown(application: Application):
+    """Shutdown the application gracefully."""
+    logger.info("Shutting down...")
+    await application.stop()
+    await application.shutdown()
+
 async def main():
     """Start the bot."""
     # Create the Application
@@ -44,9 +51,21 @@ async def main():
     # Start the bot
     await application.initialize()
     await application.start()
-    await application.run_polling()
-    await application.stop()
-    await application.shutdown()
+    
+    # Set up signal handlers
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        loop.add_signal_handler(
+            sig,
+            lambda s=sig: asyncio.create_task(shutdown(application))
+        )
+    
+    try:
+        await application.run_polling(allowed_updates=Update.ALL_TYPES)
+    except Exception as e:
+        logger.error(f"Error during polling: {e}")
+    finally:
+        await shutdown(application)
 
 if __name__ == '__main__':
     try:
