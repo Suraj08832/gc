@@ -1,4 +1,6 @@
 import os
+import logging
+import asyncio
 from dotenv import load_dotenv
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 from modules.bio_protection import setup_bio_handlers
@@ -16,8 +18,16 @@ load_dotenv()
 BOT_TOKEN = os.getenv('BOT_TOKEN')
 OWNER_ID = int(os.getenv('OWNER_ID', '0'))  # Default to 0 if not set
 
+# Configure logging
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+logger = logging.getLogger(__name__)
+
 async def main():
-    # Create application
+    """Start the bot."""
+    # Create the Application
     application = Application.builder().token(BOT_TOKEN).build()
     
     # Setup handlers from different modules
@@ -32,8 +42,16 @@ async def main():
     setup_sticker_handlers(application)
     
     # Start the bot
+    await application.initialize()
+    await application.start()
     await application.run_polling()
+    await application.stop()
+    await application.shutdown()
 
 if __name__ == '__main__':
-    import asyncio
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("Bot stopped by user")
+    except Exception as e:
+        logger.error(f"Error running bot: {e}")
